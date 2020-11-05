@@ -327,7 +327,7 @@ final class CEI_Core {
 
 			if ( self::_is_image_url( $val ) ) {
 
-				$data = self::_sideload_image( $val );
+				$data = self::get_image_data( $val );
 
 				if ( ! is_wp_error( $data ) ) {
 
@@ -383,17 +383,9 @@ final class CEI_Core {
 
 			// If error storing permanently, unlink.
 			if ( is_wp_error( $id ) ) {
-				@unlink( $file_array['tmp_name'] );
+				wp_delete_file( $file_array['tmp_name'] );
 				return $id;
 			}
-
-			// Build the object to return.
-			$meta					= wp_get_attachment_metadata( $id );
-			$data->attachment_id	= $id;
-			$data->url				= wp_get_attachment_url( $id );
-			$data->thumbnail_url	= wp_get_attachment_thumb_url( $id );
-			$data->height			= $meta['height'];
-			$data->width			= $meta['width'];
 		}
 
 		return $data;
@@ -417,5 +409,49 @@ final class CEI_Core {
 		}
 
 		return false;
+	}
+
+	/**
+	 * Extracts the information from the metada and returns it as an object
+	 *
+	 * @access private
+	 * @param integer $post_id The id of the post to extract the information.
+	 * @return object With the image information.
+	 */
+	private function set_image_data( $post_id ) {
+		$data = new stdClass();
+
+		// Build the object to return.
+		$meta                = wp_get_attachment_metadata( $post_id );
+		$data->attachment_id = $post_id;
+		$data->url           = wp_get_attachment_url( $post_id );
+		$data->thumbnail_url = wp_get_attachment_thumb_url( $post_id );
+		$data->height        = $meta['height'];
+		$data->width         = $meta['width'];
+
+		return $data;
+	}
+
+	/**
+	 * Checks whether the file already exists locally,
+	 * if the file exists returns an object with the information
+	 * if not, copies the file locally and returns the object with the information
+	 *
+	 * @access private
+	 * @param string $file The image file path.
+	 * @return object With the image information.
+	 */
+	private function get_image_data( $file ) {
+		if ( ! empty( $file ) ) {
+			$post_id = post_exists( basename( substr( $file, 0, strrpos( $file, '.' ) ) ) );
+
+			if ( ! $post_id || 'attachment' !== get_post_type( $post_id ) ) {
+				$post_id = self::sideload_image( $file );
+			}
+
+			return self::set_image_data( $post_id );
+		}
+
+		return new WP_Error( 'Invalid', __( 'Not a valid URL', 'xneelo-ww-panel' ) );
 	}
 }
